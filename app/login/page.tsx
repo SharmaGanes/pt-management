@@ -1,22 +1,28 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Stethoscope, Loader2 } from "lucide-react"
+import { Stethoscope, Loader2, ShieldAlert } from "lucide-react"
 
-export default function LoginPage() {
-  const [isLogin, setIsLogin] = useState(true)
+function LoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
+
+  useEffect(() => {
+    if (searchParams.get("error") === "unauthorized") {
+      setError("Access denied. This app is restricted to authorized users only.")
+    }
+  }, [searchParams])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -24,13 +30,8 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
-        if (error) throw error
-      } else {
-        const { error } = await supabase.auth.signUp({ email, password })
-        if (error) throw error
-      }
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) throw error
       router.push("/")
       router.refresh()
     } catch (err: unknown) {
@@ -40,6 +41,56 @@ export default function LoginPage() {
     }
   }
 
+  return (
+    <Card>
+      <CardHeader className="pb-4">
+        <CardTitle>Sign in</CardTitle>
+        <CardDescription>Enter your credentials to continue</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="doctor@hospital.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+            />
+          </div>
+
+          {error && (
+            <div className="flex items-start gap-2 rounded-lg border border-destructive/20 bg-destructive/5 p-2.5">
+              <ShieldAlert className="size-4 shrink-0 text-destructive mt-0.5" />
+              <p className="text-sm text-destructive">{error}</p>
+            </div>
+          )}
+
+          <Button type="submit" disabled={loading} className="w-full">
+            {loading && <Loader2 className="animate-spin" />}
+            Sign in
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
+
+export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm">
@@ -52,67 +103,9 @@ export default function LoginPage() {
             <p className="text-sm text-muted-foreground">Shift management for doctors</p>
           </div>
         </div>
-
-        <Card>
-          <CardHeader className="pb-4">
-            <CardTitle>{isLogin ? "Sign in" : "Create account"}</CardTitle>
-            <CardDescription>
-              {isLogin
-                ? "Enter your credentials to continue"
-                : "Enter your details to get started"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="doctor@hospital.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
-                />
-              </div>
-
-              {error && (
-                <p className="text-sm text-destructive">{error}</p>
-              )}
-
-              <Button type="submit" disabled={loading} className="w-full">
-                {loading && <Loader2 className="animate-spin" />}
-                {isLogin ? "Sign in" : "Create account"}
-              </Button>
-            </form>
-
-            <div className="mt-4 text-center text-sm text-muted-foreground">
-              {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsLogin(!isLogin)
-                  setError("")
-                }}
-                className="text-primary underline-offset-4 hover:underline"
-              >
-                {isLogin ? "Sign up" : "Sign in"}
-              </button>
-            </div>
-          </CardContent>
-        </Card>
+        <Suspense>
+          <LoginForm />
+        </Suspense>
       </div>
     </div>
   )

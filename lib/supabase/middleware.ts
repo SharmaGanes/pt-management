@@ -29,6 +29,8 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
+  const ALLOWED_EMAILS = ["sharmananthan@gmail.com"]
+
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -40,6 +42,14 @@ export async function updateSession(request: NextRequest) {
   ) {
     const url = request.nextUrl.clone()
     url.pathname = "/login"
+    return NextResponse.redirect(url)
+  }
+
+  if (user && !ALLOWED_EMAILS.includes(user.email ?? "")) {
+    await supabase.auth.signOut()
+    const url = request.nextUrl.clone()
+    url.pathname = "/login"
+    url.searchParams.set("error", "unauthorized")
     return NextResponse.redirect(url)
   }
 
