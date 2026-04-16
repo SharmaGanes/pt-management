@@ -1,12 +1,21 @@
 "use client"
 
+import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
 import { PriorityBadge } from "@/components/priority-badge"
-import { Flag, Trash2 } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Flag, Trash2, Pencil, Check, X } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { Task, TaskStatus } from "@/lib/types"
+import type { Task, TaskStatus, TaskPriority } from "@/lib/types"
 
 const statusCycle: Record<TaskStatus, TaskStatus> = {
   todo: "in_progress",
@@ -33,6 +42,9 @@ export function TaskItem({
   task: Task
   onUpdate: () => void
 }) {
+  const [editing, setEditing] = useState(false)
+  const [editTitle, setEditTitle] = useState(task.title)
+  const [editPriority, setEditPriority] = useState<TaskPriority>(task.priority)
   const supabase = createClient()
 
   async function cycleStatus() {
@@ -55,6 +67,60 @@ export function TaskItem({
   async function handleDelete() {
     await supabase.from("tasks").delete().eq("id", task.id)
     onUpdate()
+  }
+
+  async function handleSaveEdit() {
+    if (!editTitle.trim()) return
+    await supabase
+      .from("tasks")
+      .update({ title: editTitle.trim(), priority: editPriority })
+      .eq("id", task.id)
+    setEditing(false)
+    onUpdate()
+  }
+
+  function startEdit() {
+    setEditTitle(task.title)
+    setEditPriority(task.priority)
+    setEditing(true)
+  }
+
+  if (editing) {
+    return (
+      <div className="flex flex-col gap-2 rounded-lg border p-2.5 bg-muted/20">
+        <div className="flex items-center gap-2">
+          <Input
+            value={editTitle}
+            onChange={(e) => setEditTitle(e.target.value)}
+            className="text-sm flex-1"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSaveEdit()
+              if (e.key === "Escape") setEditing(false)
+            }}
+          />
+          <Select value={editPriority} onValueChange={(v) => setEditPriority(v as TaskPriority)}>
+            <SelectTrigger className="w-[100px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="low">Low</SelectItem>
+              <SelectItem value="medium">Medium</SelectItem>
+              <SelectItem value="high">High</SelectItem>
+              <SelectItem value="urgent">Urgent</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex gap-1 justify-end">
+          <Button size="icon-xs" variant="ghost" onClick={() => setEditing(false)}>
+            <X className="size-3" />
+          </Button>
+          <Button size="icon-xs" onClick={handleSaveEdit} disabled={!editTitle.trim()}>
+            <Check className="size-3" />
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -92,6 +158,15 @@ export function TaskItem({
           title={task.is_handover ? "Remove from handover" : "Add to handover"}
         >
           <Flag className="size-3" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground"
+          onClick={startEdit}
+          title="Edit task"
+        >
+          <Pencil className="size-3" />
         </Button>
         <Button
           variant="ghost"
