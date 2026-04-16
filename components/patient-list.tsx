@@ -150,6 +150,7 @@ export function PatientList() {
             <PatientCard
               key={patient.id}
               patient={patient}
+              onTaskUpdate={fetchPatients}
               onClick={() => {
                 setSelectedPatient(patient)
                 setDetailOpen(true)

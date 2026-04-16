@@ -1,12 +1,12 @@
 "use client"
 
+import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { PriorityBadge } from "@/components/priority-badge"
 import { BedDouble, Calendar, CheckCircle2, Circle, Clock, Flag, StickyNote } from "lucide-react"
 import { format, formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
-import type { PatientWithCounts } from "@/lib/types"
+import type { PatientWithCounts, TaskStatus } from "@/lib/types"
 
 const statusIcons = {
   todo: Circle,
@@ -15,20 +15,40 @@ const statusIcons = {
 }
 
 const statusColors = {
-  todo: "text-muted-foreground",
-  in_progress: "text-blue-500",
-  done: "text-green-500",
+  todo: "text-muted-foreground hover:text-blue-500",
+  in_progress: "text-blue-500 hover:text-green-500",
+  done: "text-green-500 hover:text-muted-foreground",
+}
+
+const nextStatus: Record<TaskStatus, TaskStatus> = {
+  todo: "in_progress",
+  in_progress: "done",
+  done: "todo",
 }
 
 export function PatientCard({
   patient,
   onClick,
+  onTaskUpdate,
 }: {
   patient: PatientWithCounts
   onClick: () => void
+  onTaskUpdate: () => void
 }) {
-  const pendingTasks = patient.tasks.filter((t) => t.status !== "done")
+  const supabase = createClient()
+  const allTasks = patient.tasks
+  const pendingTasks = allTasks.filter((t) => t.status !== "done")
+  const doneTasks = allTasks.filter((t) => t.status === "done")
   const recentNotes = patient.notes.slice(0, 3)
+
+  async function cycleTaskStatus(e: React.MouseEvent, taskId: string, currentStatus: TaskStatus) {
+    e.stopPropagation()
+    await supabase
+      .from("tasks")
+      .update({ status: nextStatus[currentStatus] })
+      .eq("id", taskId)
+    onTaskUpdate()
+  }
 
   return (
     <Card
@@ -63,16 +83,22 @@ export function PatientCard({
           </span>
         </div>
 
-        {pendingTasks.length > 0 && (
+        {allTasks.length > 0 && (
           <div className="flex flex-col gap-1 border-t pt-2">
             <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-0.5">
-              Tasks ({pendingTasks.length})
+              Tasks ({pendingTasks.length} pending{doneTasks.length > 0 ? `, ${doneTasks.length} done` : ""})
             </p>
-            {pendingTasks.slice(0, 4).map((task) => {
+            {pendingTasks.slice(0, 5).map((task) => {
               const Icon = statusIcons[task.status]
               return (
-                <div key={task.id} className="flex items-center gap-1.5">
-                  <Icon className={cn("size-3 shrink-0", statusColors[task.status])} />
+                <div key={task.id} className="flex items-center gap-1.5 group/task">
+                  <button
+                    onClick={(e) => cycleTaskStatus(e, task.id, task.status)}
+                    className={cn("shrink-0 transition-colors", statusColors[task.status])}
+                    title={task.status === "todo" ? "Mark in progress" : "Mark done"}
+                  >
+                    <Icon className="size-3.5" />
+                  </button>
                   <span className="text-xs truncate flex-1">{task.title}</span>
                   {task.is_handover && (
                     <Flag className="size-2.5 shrink-0 text-orange-500" />
@@ -81,10 +107,31 @@ export function PatientCard({
                 </div>
               )
             })}
-            {pendingTasks.length > 4 && (
+            {pendingTasks.length > 5 && (
               <p className="text-[10px] text-muted-foreground">
-                +{pendingTasks.length - 4} more
+                +{pendingTasks.length - 5} more
               </p>
+            )}
+            {doneTasks.length > 0 && (
+              <div className="flex flex-col gap-1 mt-1 opacity-50">
+                {doneTasks.slice(0, 3).map((task) => (
+                  <div key={task.id} className="flex items-center gap-1.5">
+                    <button
+                      onClick={(e) => cycleTaskStatus(e, task.id, task.status)}
+                      className="shrink-0 text-green-500 hover:text-muted-foreground transition-colors"
+                      title="Reopen task"
+                    >
+                      <CheckCircle2 className="size-3.5" />
+                    </button>
+                    <span className="text-xs truncate flex-1 line-through">{task.title}</span>
+                  </div>
+                ))}
+                {doneTasks.length > 3 && (
+                  <p className="text-[10px] text-muted-foreground">
+                    +{doneTasks.length - 3} more done
+                  </p>
+                )}
+              </div>
             )}
           </div>
         )}
