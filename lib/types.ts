@@ -38,4 +38,6 @@ export interface Task {
 export interface PatientWithCounts extends Patient {
   pending_tasks: number
   highest_priority: TaskPriority | null
+  tasks: Task[]
+  notes: Note[]
 }

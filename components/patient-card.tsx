@@ -3,9 +3,22 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { PriorityBadge } from "@/components/priority-badge"
-import { BedDouble, Calendar } from "lucide-react"
-import { format } from "date-fns"
+import { BedDouble, Calendar, CheckCircle2, Circle, Clock, Flag, StickyNote } from "lucide-react"
+import { format, formatDistanceToNow } from "date-fns"
+import { cn } from "@/lib/utils"
 import type { PatientWithCounts } from "@/lib/types"
+
+const statusIcons = {
+  todo: Circle,
+  in_progress: Clock,
+  done: CheckCircle2,
+}
+
+const statusColors = {
+  todo: "text-muted-foreground",
+  in_progress: "text-blue-500",
+  done: "text-green-500",
+}
 
 export function PatientCard({
   patient,
@@ -14,6 +27,9 @@ export function PatientCard({
   patient: PatientWithCounts
   onClick: () => void
 }) {
+  const pendingTasks = patient.tasks.filter((t) => t.status !== "done")
+  const recentNotes = patient.notes.slice(0, 3)
+
   return (
     <Card
       className="cursor-pointer transition-all hover:ring-2 hover:ring-primary/20 hover:shadow-md active:scale-[0.99]"
@@ -31,16 +47,11 @@ export function PatientCard({
             {patient.highest_priority && (
               <PriorityBadge priority={patient.highest_priority} />
             )}
-            {patient.pending_tasks > 0 && (
-              <Badge variant="secondary" className="text-[10px]">
-                {patient.pending_tasks} task{patient.pending_tasks !== 1 ? "s" : ""}
-              </Badge>
-            )}
           </div>
         </div>
       </CardHeader>
-      <CardContent className="pt-0">
-        <p className="mb-2 text-sm text-foreground/80">{patient.diagnosis}</p>
+      <CardContent className="pt-0 flex flex-col gap-2.5">
+        <p className="text-sm text-foreground/80">{patient.diagnosis}</p>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
             <BedDouble className="size-3" />
@@ -51,6 +62,51 @@ export function PatientCard({
             {format(new Date(patient.admission_date), "dd MMM")}
           </span>
         </div>
+
+        {pendingTasks.length > 0 && (
+          <div className="flex flex-col gap-1 border-t pt-2">
+            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-0.5">
+              Tasks ({pendingTasks.length})
+            </p>
+            {pendingTasks.slice(0, 4).map((task) => {
+              const Icon = statusIcons[task.status]
+              return (
+                <div key={task.id} className="flex items-center gap-1.5">
+                  <Icon className={cn("size-3 shrink-0", statusColors[task.status])} />
+                  <span className="text-xs truncate flex-1">{task.title}</span>
+                  {task.is_handover && (
+                    <Flag className="size-2.5 shrink-0 text-orange-500" />
+                  )}
+                  <PriorityBadge priority={task.priority} />
+                </div>
+              )
+            })}
+            {pendingTasks.length > 4 && (
+              <p className="text-[10px] text-muted-foreground">
+                +{pendingTasks.length - 4} more
+              </p>
+            )}
+          </div>
+        )}
+
+        {recentNotes.length > 0 && (
+          <div className="flex flex-col gap-1 border-t pt-2">
+            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-0.5">
+              <StickyNote className="size-2.5 inline mr-1" />
+              Notes ({patient.notes.length})
+            </p>
+            {recentNotes.map((note) => (
+              <div key={note.id} className="flex items-start gap-1.5">
+                <p className="text-xs text-foreground/70 line-clamp-1 flex-1">
+                  {note.content}
+                </p>
+                <span className="text-[10px] text-muted-foreground shrink-0">
+                  {formatDistanceToNow(new Date(note.created_at), { addSuffix: true }).replace("about ", "")}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   )

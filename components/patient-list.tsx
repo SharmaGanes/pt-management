@@ -9,7 +9,7 @@ import { AddPatientForm } from "@/components/add-patient-form"
 import { PatientCard } from "@/components/patient-card"
 import { PatientDetail } from "@/components/patient-detail"
 import { Search, Users } from "lucide-react"
-import type { Patient, PatientWithCounts, Task, TaskPriority } from "@/lib/types"
+import type { Patient, PatientWithCounts, Task, Note, TaskPriority } from "@/lib/types"
 
 const priorityOrder: Record<TaskPriority, number> = {
   urgent: 0,
@@ -41,34 +41,49 @@ export function PatientList() {
 
     const { data: tasksData } = await supabase
       .from("tasks")
-      .select("patient_id, status, priority")
-      .neq("status", "done")
+      .select("*")
+      .order("created_at", { ascending: false })
 
-    const taskMap = new Map<string, { count: number; highestPriority: TaskPriority | null }>()
+    const { data: notesData } = await supabase
+      .from("notes")
+      .select("*")
+      .order("created_at", { ascending: false })
+
+    const tasksByPatient = new Map<string, Task[]>()
+    const notesByPatient = new Map<string, Note[]>()
+
     if (tasksData) {
-      for (const task of tasksData as Pick<Task, "patient_id" | "status" | "priority">[]) {
-        const existing = taskMap.get(task.patient_id)
-        if (!existing) {
-          taskMap.set(task.patient_id, { count: 1, highestPriority: task.priority })
-        } else {
-          existing.count++
-          if (
-            task.priority &&
-            (!existing.highestPriority ||
-              priorityOrder[task.priority] < priorityOrder[existing.highestPriority])
-          ) {
-            existing.highestPriority = task.priority
-          }
-        }
+      for (const task of tasksData as Task[]) {
+        const existing = tasksByPatient.get(task.patient_id) ?? []
+        existing.push(task)
+        tasksByPatient.set(task.patient_id, existing)
+      }
+    }
+
+    if (notesData) {
+      for (const note of notesData as Note[]) {
+        const existing = notesByPatient.get(note.patient_id) ?? []
+        existing.push(note)
+        notesByPatient.set(note.patient_id, existing)
       }
     }
 
     const withCounts: PatientWithCounts[] = patientsData.map((p) => {
-      const info = taskMap.get(p.id)
+      const tasks = tasksByPatient.get(p.id) ?? []
+      const notes = notesByPatient.get(p.id) ?? []
+      const pendingTasks = tasks.filter((t) => t.status !== "done")
+      let highestPriority: TaskPriority | null = null
+      for (const t of pendingTasks) {
+        if (!highestPriority || priorityOrder[t.priority] < priorityOrder[highestPriority]) {
+          highestPriority = t.priority
+        }
+      }
       return {
         ...p,
-        pending_tasks: info?.count ?? 0,
-        highest_priority: info?.highestPriority ?? null,
+        pending_tasks: pendingTasks.length,
+        highest_priority: highestPriority,
+        tasks,
+        notes,
       }
     })
 
